@@ -2,9 +2,11 @@ package comment
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
-	"slices"
+	"strings"
+	"text/template"
 
 	"github.com/Pineapple217/TFAnnotate/pkg/state"
 	"github.com/hashicorp/hcl/v2"
@@ -25,32 +27,48 @@ type FileUpdate struct {
 	Comment string
 }
 
-func Gen(s state.State, blocks []*hclsyntax.Block) {
-	moduels := []string{
-		"../../modules/internal_topic_v0.1",
-	}
+func Gen(s state.State, blocks []*hclsyntax.Block, c Config) {
 	files := GenFiles{}
 	for _, b := range blocks {
-		if b.Type == "module" {
-			v, _ := b.Body.Attributes["source"].Expr.Value(&hcl.EvalContext{})
-			source := v.AsString()
-			if slices.Contains(moduels, source) {
-				r, err := s.GetResource(state.Query{
-					Module: b.Labels[0],
-					Type:   "confluent_kafka_topic",
-					Name:   "topic",
-				})
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+		for _, a := range c.Annotations {
+			if a.Module != nil {
+				if b.Type == "module" {
+					v, _ := b.Body.Attributes["source"].Expr.Value(&hcl.EvalContext{})
+					source := v.AsString()
+					if a.Module.Source != source {
+						continue
+					}
+					values := map[string]string{}
+					for _, value := range a.Values {
+						tt := strings.Split(value.Target, ".")
+						r, err := s.GetResource(state.Query{
+							Module: b.Labels[0],
+							Type:   tt[0],
+							Name:   tt[1],
+						})
+						if err != nil {
+							fmt.Println(err)
+							os.Exit(1)
+						}
+						extractedValue := r.Instances[0]["attributes"].(map[string]any)[tt[2]].(string)
+						values[value.Name] = extractedValue
+					}
+					tp, err := template.New(a.Name).Parse(a.Comment)
+					if err != nil {
+						panic(err)
+					}
+					buf := &bytes.Buffer{}
+					err = tp.Execute(buf, values)
+					if err != nil {
+						panic(err)
+					}
+					fileName := b.Body.SrcRange.Filename
+					files.AddFileUpdate(fileName, FileUpdate{
+						Line:    b.Body.SrcRange.Start.Line,
+						Comment: buf.String(),
+					})
 				}
-				fileName := b.Body.SrcRange.Filename
-				topicName := r.Instances[0]["attributes"].(map[string]any)["topic_name"].(string)
 
-				files.AddFileUpdate(fileName, FileUpdate{
-					Line:    b.Body.SrcRange.Start.Line,
-					Comment: "Topic name: " + topicName,
-				})
 			}
 		}
 	}

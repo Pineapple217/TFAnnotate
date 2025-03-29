@@ -38,6 +38,10 @@ func Parse(path string) []*hclsyntax.Block {
 	return blocks
 }
 
+func ClearAll(path string) {
+	findHCLFiles(path)
+}
+
 func findHCLFiles(root string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
