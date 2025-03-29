@@ -2,7 +2,6 @@ package parser
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,13 +11,12 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
-func Parse(path string) []*hclsyntax.Block {
+func Parse(path string) ([]*hclsyntax.Block, error) {
 	rootDir := path
 
 	files, err := findHCLFiles(rootDir)
 	if err != nil {
-		fmt.Println("Error scanning directory:", err)
-		return nil
+		return nil, err
 	}
 	blocks := []*hclsyntax.Block{}
 
@@ -26,16 +24,16 @@ func Parse(path string) []*hclsyntax.Block {
 	for _, file := range files {
 		content, err := os.ReadFile(file)
 		if err != nil {
-			continue
+			return nil, err
 		}
 
 		hclFile, diags := parser.ParseHCL(content, file)
 		if diags.HasErrors() {
-			continue
+			return nil, err
 		}
 		blocks = append(blocks, hclFile.Body.(*hclsyntax.Body).Blocks...)
 	}
-	return blocks
+	return blocks, nil
 }
 
 func ClearAll(path string) {
@@ -49,7 +47,10 @@ func findHCLFiles(root string) ([]string, error) {
 			return err
 		}
 		if !info.IsDir() && filepath.Ext(path) == ".tf" {
-			ClearComments(path)
+			err = ClearComments(path)
+			if err != nil {
+				return err
+			}
 			files = append(files, path)
 		}
 		return nil
@@ -57,11 +58,10 @@ func findHCLFiles(root string) ([]string, error) {
 	return files, err
 }
 
-func ClearComments(filePath string) {
+func ClearComments(filePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
+		return err
 	}
 	defer file.Close()
 
@@ -76,12 +76,9 @@ func ClearComments(filePath string) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Println("Error reading file:", err)
-		return
+		return err
 	}
 
 	err = os.WriteFile(filePath, []byte(strings.Join(lines, "\n")+"\n"), 0644)
-	if err != nil {
-		fmt.Println("Error writing file:", err)
-	}
+	return err
 }

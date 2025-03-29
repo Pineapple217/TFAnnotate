@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"log"
 	"os/exec"
 )
 
@@ -27,7 +26,7 @@ type Resource struct {
 	Instances []map[string]any `json:"instances"`
 }
 
-func Pull(path string) State {
+func Pull(path string) (State, error) {
 	cmd := exec.Command("terraform", "state", "pull")
 	cmd.Dir = path
 	var out bytes.Buffer
@@ -37,15 +36,12 @@ func Pull(path string) State {
 	err := cmd.Run()
 	if err != nil {
 		println(out.String())
+		return State{}, err
 	}
 
 	var state State
 	err = json.Unmarshal(out.Bytes(), &state)
-	if err != nil {
-		log.Fatalf("Error parsing JSON: %v", err)
-	}
-
-	return state
+	return state, err
 }
 
 type Query struct {

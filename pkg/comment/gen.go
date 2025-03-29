@@ -27,13 +27,16 @@ type FileUpdate struct {
 	Comment string
 }
 
-func Gen(s state.State, blocks []*hclsyntax.Block, c Config) {
+func Gen(s state.State, blocks []*hclsyntax.Block, c Config) error {
 	files := GenFiles{}
 	for _, b := range blocks {
 		for _, a := range c.Annotations {
 			if a.Module != nil {
 				if b.Type == "module" {
-					v, _ := b.Body.Attributes["source"].Expr.Value(&hcl.EvalContext{})
+					v, diags := b.Body.Attributes["source"].Expr.Value(&hcl.EvalContext{})
+					if diags.HasErrors() {
+						return diags
+					}
 					source := v.AsString()
 					if a.Module.Source != source {
 						continue
@@ -47,20 +50,19 @@ func Gen(s state.State, blocks []*hclsyntax.Block, c Config) {
 							Name:   tt[1],
 						})
 						if err != nil {
-							fmt.Println(err)
-							os.Exit(1)
+							return err
 						}
 						extractedValue := r.Instances[0]["attributes"].(map[string]any)[tt[2]].(string)
 						values[value.Name] = extractedValue
 					}
 					tp, err := template.New(a.Name).Parse(a.Comment)
 					if err != nil {
-						panic(err)
+						return err
 					}
 					buf := &bytes.Buffer{}
 					err = tp.Execute(buf, values)
 					if err != nil {
-						panic(err)
+						return err
 					}
 					fileName := b.Body.SrcRange.Filename
 					files.AddFileUpdate(fileName, FileUpdate{
@@ -73,9 +75,7 @@ func Gen(s state.State, blocks []*hclsyntax.Block, c Config) {
 		}
 	}
 	err := files.Insert()
-	if err != nil {
-		panic(err)
-	}
+	return err
 }
 
 func (gfs GenFiles) AddFileUpdate(fileName string, fu FileUpdate) {

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/Pineapple217/TFAnnotate/pkg/comment"
 	"github.com/Pineapple217/TFAnnotate/pkg/parser"
 	"github.com/Pineapple217/TFAnnotate/pkg/state"
@@ -8,14 +10,34 @@ import (
 )
 
 func main() {
+	var cmdVersion = &cobra.Command{
+		Use: "version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("TFAnnotate v0.1.0")
+		},
+	}
+
 	var cmdParse = &cobra.Command{
 		Use:  "parse [path to parse]",
 		Args: cobra.MinimumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			b := parser.Parse(args[0])
-			s := state.Pull(args[0])
-			c := comment.GetConfig(args[0])
+		RunE: func(cmd *cobra.Command, args []string) error {
+			b, err := parser.Parse(args[0])
+			if err != nil {
+				return err
+			}
+
+			s, err := state.Pull(args[0])
+			if err != nil {
+				return err
+			}
+
+			c, err := comment.GetConfig(args[0])
+			if err != nil {
+				return err
+			}
+
 			comment.Gen(s, b, c)
+			return nil
 		},
 	}
 
@@ -29,6 +51,6 @@ func main() {
 	}
 
 	var rootCmd = &cobra.Command{Use: "tfa"}
-	rootCmd.AddCommand(cmdParse, cmdRemove)
+	rootCmd.AddCommand(cmdVersion, cmdParse, cmdRemove)
 	rootCmd.Execute()
 }

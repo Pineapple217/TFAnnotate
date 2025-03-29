@@ -26,12 +26,9 @@ type Module struct {
 	Source string `hcl:"source"`
 }
 
-func GetConfig(dir string) Config {
+func GetConfig(dir string) (Config, error) {
 	var config Config
 	err := hclsimple.DecodeFile(dir+configFile, nil, &config)
-	if err != nil {
-		panic(err)
-	}
 
-	return config
+	return config, err
 }
